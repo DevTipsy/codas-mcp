@@ -26,8 +26,23 @@ import { renderConsentPage } from "./consent.js";
 
 export function mountOAuth(app: Express, publicBaseUrl: string) {
   // ---------- Metadata ----------
-  // Lu par les clients MCP au moment de leur initiation OAuth pour
-  // découvrir les autres endpoints.
+  // Deux endpoints exigés par la spec MCP / RFCs :
+  //  - /.well-known/oauth-protected-resource (RFC 9728) — pointe vers
+  //    le serveur OAuth qui protège cette ressource. Premier appel
+  //    qu'un client MCP fait après avoir reçu un 401.
+  //  - /.well-known/oauth-authorization-server (RFC 8414) — décrit les
+  //    endpoints OAuth eux-mêmes.
+
+  app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+    res.json({
+      resource: `${publicBaseUrl}/mcp`,
+      authorization_servers: [publicBaseUrl],
+      bearer_methods_supported: ["header"],
+      scopes_supported: ["mcp"],
+      resource_documentation: "https://codaslibrary.app/mcp.html",
+    });
+  });
+
   app.get("/.well-known/oauth-authorization-server", (_req, res) => {
     res.json({
       issuer: publicBaseUrl,

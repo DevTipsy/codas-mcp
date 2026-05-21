@@ -57,11 +57,11 @@ app.post("/mcp", async (req: Request, res: Response) => {
   const bearer = extractBearer(req.headers.authorization);
   const apiKey = resolveApiKey(bearer);
   if (!apiKey) {
-    // L'header WWW-Authenticate annonce où trouver le flow OAuth pour les
-    // clients qui supportent la découverte (MCP spec §6).
+    // WWW-Authenticate annonce le metadata de la ressource protégée
+    // (RFC 9728), depuis lequel le client découvre le serveur OAuth.
     res.setHeader(
       "WWW-Authenticate",
-      `Bearer realm="codas", error="invalid_token", resource_metadata="${PUBLIC_BASE_URL}/.well-known/oauth-authorization-server"`
+      `Bearer realm="codas", error="invalid_token", resource_metadata="${PUBLIC_BASE_URL}/.well-known/oauth-protected-resource"`
     );
     res.status(401).json({
       jsonrpc: "2.0",
