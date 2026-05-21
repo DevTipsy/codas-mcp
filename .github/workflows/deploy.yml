@@ -1,0 +1,41 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'Dockerfile'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          timeout: 10m
+          command_timeout: 8m
+          request_pty: true
+          script: |
+            set -e
+            cd ~/codas-mcp
+            git fetch https://github.com/DevTipsy/codas-mcp.git main
+            git reset --hard FETCH_HEAD
+            npm ci --omit=dev=false
+            npm run build
+            sudo /bin/systemctl daemon-reload
+            sudo /bin/systemctl restart codas-mcp
+            sleep 2
+            sudo /bin/systemctl is-active codas-mcp || (echo "❌ codas-mcp failed to start" && exit 1)
+            echo "✅ codas-mcp déployé et actif"
