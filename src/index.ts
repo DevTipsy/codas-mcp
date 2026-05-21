@@ -32,6 +32,34 @@ import { verifyAccessToken } from "./oauth/jwt.js";
 const PORT = Number(process.env.PORT ?? 8081);
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? "https://mcp.codaslibrary.app";
 const app = express();
+
+// CORS permissif — les clients MCP web (claude.ai, ChatGPT) font parfois
+// des requêtes cross-origin de découverte (les MCP server-to-server n'en
+// ont pas besoin, mais ça ne coûte rien et débloque les cas non-server).
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, MCP-Session-Id, Mcp-Protocol-Version"
+  );
+  res.setHeader(
+    "Access-Control-Expose-Headers",
+    "WWW-Authenticate, MCP-Session-Id"
+  );
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  next();
+});
+
+// Logging requêtes — utile pour debug OAuth discovery côté clients tiers.
+app.use((req, _res, next) => {
+  console.log(`→ ${req.method} ${req.originalUrl} (host=${req.headers.host}, ua=${req.headers["user-agent"]?.slice(0, 60) ?? "?"})`);
+  next();
+});
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" })); // form POST du consent
 
