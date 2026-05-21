@@ -26,6 +26,7 @@ import { CodasClient } from "./codasClient.js";
 import { searchComponents, searchComponentsSchema } from "./tools/search.js";
 import { getComponent, getComponentSchema } from "./tools/getComponent.js";
 import { recommendComponent, recommendComponentSchema } from "./tools/recommend.js";
+import { listComponents, listComponentsSchema } from "./tools/list.js";
 import { mountOAuth } from "./oauth/routes.js";
 import { verifyAccessToken } from "./oauth/jwt.js";
 
@@ -210,7 +211,24 @@ function createCodasServer(client: CodasClient): McpServer {
     }
   );
 
-  // --- Tool 3 : recommend_component ---
+  // --- Tool 3 : list_components ---
+  server.registerTool(
+    "list_components",
+    {
+      title: "Lister des composants",
+      description:
+        "Liste des composants du catalogue par critère de tri — sans recherche par mots-clés. " +
+        "À utiliser pour répondre à 'donne-moi les composants populaires', 'liste les nouveaux', " +
+        "'top par note', etc. Pour chercher par nom/description, utilise search_components à la place.",
+      inputSchema: listComponentsSchema,
+    },
+    async (args) => {
+      const result = await listComponents(client, args);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // --- Tool 4 : recommend_component ---
   server.registerTool(
     "recommend_component",
     {
