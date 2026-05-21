@@ -218,8 +218,9 @@ function createCodasServer(client: CodasClient): McpServer {
       title: "Lister des composants",
       description:
         "Liste des composants du catalogue par critère de tri — sans recherche par mots-clés. " +
-        "À utiliser pour répondre à 'donne-moi les composants populaires', 'liste les nouveaux', " +
-        "'top par note', etc. Pour chercher par nom/description, utilise search_components à la place.",
+        "Combine `sort` (downloads, rating, date, name) et `order` (desc, asc) pour couvrir : " +
+        "populaires / moins téléchargés / nouveaux / plus anciens / mieux notés / moins bien notés / alphabétique. " +
+        "Pour une recherche par nom ou description, utilise search_components à la place.",
       inputSchema: listComponentsSchema,
     },
     async (args) => {
