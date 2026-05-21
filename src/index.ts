@@ -54,12 +54,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Logging requêtes — utile pour debug OAuth discovery côté clients tiers.
-app.use((req, _res, next) => {
-  console.log(`→ ${req.method} ${req.originalUrl} (host=${req.headers.host}, ua=${req.headers["user-agent"]?.slice(0, 60) ?? "?"})`);
-  next();
-});
-
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" })); // form POST du consent
 
