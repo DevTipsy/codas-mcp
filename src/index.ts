@@ -26,10 +26,16 @@ import { CodasClient } from "./codasClient.js";
 import { searchComponents, searchComponentsSchema } from "./tools/search.js";
 import { getComponent, getComponentSchema } from "./tools/getComponent.js";
 import { recommendComponent, recommendComponentSchema } from "./tools/recommend.js";
+import { mountOAuth } from "./oauth/routes.js";
+import { verifyAccessToken } from "./oauth/jwt.js";
 
 const PORT = Number(process.env.PORT ?? 8081);
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL ?? "https://mcp.codaslibrary.app";
 const app = express();
 app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" })); // form POST du consent
+
+mountOAuth(app, PUBLIC_BASE_URL);
 
 // Healthcheck (utile pour nginx / monitoring).
 app.get("/health", (_req, res) => {
@@ -45,21 +51,30 @@ app.get("/health", (_req, res) => {
  * câblés sur la clé du caller, puis on laisse le transport répondre.
  */
 app.post("/mcp", async (req: Request, res: Response) => {
-  // 1. Extraction de la clé API
-  const apiKey = extractBearer(req.headers.authorization);
-  if (!apiKey || !apiKey.startsWith("codas_pk_")) {
+  // Auth — accepte deux formats côté Authorization Bearer :
+  //   1. Clé API directe (codas_pk_…) : usage CLI / scripts
+  //   2. Token OAuth JWT issu de notre flow : usage claude.ai, ChatGPT, etc.
+  const bearer = extractBearer(req.headers.authorization);
+  const apiKey = resolveApiKey(bearer);
+  if (!apiKey) {
+    // L'header WWW-Authenticate annonce où trouver le flow OAuth pour les
+    // clients qui supportent la découverte (MCP spec §6).
+    res.setHeader(
+      "WWW-Authenticate",
+      `Bearer realm="codas", error="invalid_token", resource_metadata="${PUBLIC_BASE_URL}/.well-known/oauth-authorization-server"`
+    );
     res.status(401).json({
       jsonrpc: "2.0",
       error: {
         code: -32001,
-        message: "Clé API Codas manquante ou invalide. Génère une clé dans l'app Codas → Profil → Clés API, puis ajoute-la dans la config de ton client MCP : `Authorization: Bearer codas_pk_xxx`.",
+        message:
+          "Authentification requise. Soit via OAuth (Add custom connector dans claude.ai/ChatGPT/Cursor), soit via Bearer codas_pk_xxx (CLI).",
       },
       id: null,
     });
     return;
   }
 
-  // 2. Création d'un serveur MCP éphémère pour cette requête
   const client = new CodasClient({ apiKey });
   const server = createCodasServer(client);
   const transport = new StreamableHTTPServerTransport({
@@ -107,6 +122,22 @@ function extractBearer(header: string | undefined): string | undefined {
   if (!header) return undefined;
   const match = /^Bearer\s+(.+)$/i.exec(header.trim());
   return match?.[1];
+}
+
+/**
+ * Résout un token Bearer en clé API Codas utilisable.
+ * - Si c'est un `codas_pk_*` direct → on l'utilise tel quel.
+ * - Sinon on tente de le valider comme JWT OAuth → extrait la clé enveloppée.
+ */
+function resolveApiKey(bearer: string | undefined): string | undefined {
+  if (!bearer) return undefined;
+  if (bearer.startsWith("codas_pk_")) return bearer;
+  // JWT a 3 segments séparés par des points — bonne pré-vérif rapide.
+  if (bearer.split(".").length === 3) {
+    const apiKey = verifyAccessToken(bearer);
+    if (apiKey) return apiKey;
+  }
+  return undefined;
 }
 
 function createCodasServer(client: CodasClient): McpServer {
